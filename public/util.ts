@@ -97,7 +97,7 @@ const operations: operation[] = [
   },
   {
     name: "Get User's Upvoted Posts",
-    endpoint: "/api/reactions/:id",
+    endpoint: "/api/reactions",
     method: "GET",
     fields: { author: "input" },
   },
@@ -109,15 +109,15 @@ const operations: operation[] = [
   },
   {
     name: "Mark As Read",
-    endpoint: "/api/notifications/:id",
-    method: "POST",
-    fields: { notification: "input" },
+    endpoint: "/api/notifications/:notificationId",
+    method: "PUT",
+    fields: { notificationId: "input" },
   },
   {
     name: "Mark As Unread",
-    endpoint: "/api/notifications/:id",
-    method: "POST",
-    fields: { notification: "input" },
+    endpoint: "/api/notifications/:notificationId",
+    method: "PUT",
+    fields: { notificationId: "input" },
   },
   {
     name: "Get Read Notifications",
@@ -140,8 +140,8 @@ const operations: operation[] = [
   {
     name: "Unsubscribe from Notifications",
     endpoint: "/api/notifications",
-    method: "POST",
-    fields: { boolean: "input" },
+    method: "PUT",
+    fields: { userId: "input" },
   },
   {
     name: "Create Limit",

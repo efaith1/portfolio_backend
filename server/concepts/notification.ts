@@ -1,13 +1,13 @@
 import { Filter, ObjectId } from "mongodb";
 
 import DocCollection, { BaseDoc } from "../framework/doc";
+import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface NotificationOptions {
   backgroundColor?: string;
 }
 
 export interface NotificationDoc extends BaseDoc {
-  notification: ObjectId;
   recipient: ObjectId;
   content: string;
   read: Boolean;
@@ -35,34 +35,49 @@ export default class NotificationConcept {
     return { msg: "Notification sent successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
-  async markAsRead(notification: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.updateOne({ notification }, update);
+  async markAsRead(_notificationId: ObjectId, update: Partial<NotificationDoc>) {
+    const _id = await this.notifications.updateOne({ _notificationId }, update);
     return { msg: "Notification marked as Read successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
-  async markAsUnread(notification: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.updateOne({ notification }, update);
+  async markAsUnread(_notificationId: ObjectId, update: Partial<NotificationDoc>) {
+    const _id = await this.notifications.updateOne({ _notificationId }, update);
     return { msg: "Notification marked as Unread successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
-  async listRead(id: ObjectId) {
-    return await this.getNotifications({ id, read: true });
+  async getRead(recipientId: ObjectId) {
+    return await this.getNotifications({ recipientId, read: true });
   }
 
-  async listUnread(id: ObjectId) {
-    return await this.getNotifications({ id, read: false });
+  async getUnread(recipientId: ObjectId) {
+    return await this.getNotifications({ recipientId, read: false });
   }
 
-  async clearNotifications(notification: ObjectId) {
-    return await this.clearNotificationHelper({ notification });
-  }
-
-  async getNotificationById(id: ObjectId) {
-    return await this.getNotifications({ id });
+  async clearNotifications(notificationId: ObjectId) {
+    return await this.clearNotificationHelper({ notificationId }); // delete one vs delete all (user ID)
   }
 
   async unsubscribe(user: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.replaceOne({ user }, update);
+    const _id = await this.notifications.updateOne({ user }, update);
     return { msg: "User unsubscribed successfully!", post: await this.notifications.readOne({ _id }) };
+  }
+
+  async isAuthor(user: ObjectId, _id: ObjectId) {
+    const notification = await this.notifications.readOne({ _id });
+    if (!notification) {
+      throw new NotFoundError(`notification ${_id} does not exist!`);
+    }
+    if (notification.recipient.toString() !== user.toString()) {
+      throw new NotificationAuthorNotMatchError(user, _id);
+    }
+  }
+}
+
+export class NotificationAuthorNotMatchError extends NotAllowedError {
+  constructor(
+    public readonly author: ObjectId,
+    public readonly _id: ObjectId,
+  ) {
+    super("{0} is not the author of notification {1}!", author, _id);
   }
 }

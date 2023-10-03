@@ -1,8 +1,8 @@
 import { User } from "./app";
 import { AlreadyFriendsError, FriendNotFoundError, FriendRequestAlreadyExistsError, FriendRequestDoc, FriendRequestNotFoundError } from "./concepts/friend";
-import { NotificationDoc } from "./concepts/notification";
+import { NotificationAuthorNotMatchError, NotificationDoc } from "./concepts/notification";
 import { PostAuthorNotMatchError, PostDoc } from "./concepts/post";
-import { ReactionDoc } from "./concepts/reaction";
+import { ReactionAuthorNotMatchError, ReactionDoc } from "./concepts/reaction";
 import { Router } from "./framework/router";
 
 /**
@@ -101,5 +101,15 @@ Router.registerError(FriendRequestNotFoundError, async (e) => {
 
 Router.registerError(AlreadyFriendsError, async (e) => {
   const [user1, user2] = await Promise.all([User.getUserById(e.user1), User.getUserById(e.user2)]);
+  return e.formatWith(user1.username, user2.username);
+});
+
+Router.registerError(NotificationAuthorNotMatchError, async (e) => {
+  const [user1, user2] = await Promise.all([User.getUserById(e.author), User.getUserById(e.author)]);
+  return e.formatWith(user1.username, user2.username);
+});
+
+Router.registerError(ReactionAuthorNotMatchError, async (e) => {
+  const [user1, user2] = await Promise.all([User.getUserById(e.author), User.getUserById(e.author)]);
   return e.formatWith(user1.username, user2.username);
 });

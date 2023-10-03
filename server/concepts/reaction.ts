@@ -1,6 +1,7 @@
 import { Filter, ObjectId } from "mongodb";
 
 import DocCollection, { BaseDoc } from "../framework/doc";
+import { NotAllowedError, NotFoundError } from "./errors";
 
 export interface ReactionOptions {
   backgroundColor?: string;
@@ -49,8 +50,27 @@ export default class ReactionConcept {
     return { msg: "Reaction count retrieved successfully!", reaction: await this.reactions.readOne({ _id }) };
   }
 
-  async getAuthorLikes(author: ObjectId, options?: ReactionOptions) {
+  async getAuthorUpvotes(author: ObjectId, options?: ReactionOptions) {
     const _id = await this.getReactionsHelper({ author, options });
     return { msg: "Author's reactions retrieved successfully!", reaction: await this.reactions.readOne({ _id }) };
+  }
+
+  async isAuthor(user: ObjectId, _id: ObjectId) {
+    const reaction = await this.reactions.readOne({ _id });
+    if (!reaction) {
+      throw new NotFoundError(`reaction ${_id} does not exist!`);
+    }
+    if (reaction.author.toString() !== user.toString()) {
+      throw new ReactionAuthorNotMatchError(user, _id);
+    }
+  }
+}
+
+export class ReactionAuthorNotMatchError extends NotAllowedError {
+  constructor(
+    public readonly author: ObjectId,
+    public readonly _id: ObjectId,
+  ) {
+    super("{0} is not the author of reaaction {1}!", author, _id);
   }
 }
