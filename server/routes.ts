@@ -2,8 +2,11 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Friend, Post, User, WebSession } from "./app";
+import { Friend, Limit, Notification, Post, Reaction, User, WebSession } from "./app";
+import { LimitOptions } from "./concepts/limit";
+import { NotificationDoc, NotificationOptions } from "./concepts/notification";
 import { PostDoc, PostOptions } from "./concepts/post";
+import { ReactionOptions } from "./concepts/reaction";
 import { UserDoc } from "./concepts/user";
 import { WebSessionDoc } from "./concepts/websession";
 import Responses from "./responses";
@@ -135,6 +138,121 @@ class Routes {
     const user = WebSession.getUser(session);
     const fromId = (await User.getUserByUsername(from))._id;
     return await Friend.rejectRequest(fromId, user);
+  }
+
+  @Router.post("/reactions/:postId")
+  async createUpvote(session: WebSessionDoc, target: ObjectId, options?: ReactionOptions) {
+    const user = WebSession.getUser(session);
+    const post = (await Post.getPosts({ target }))[0]._id;
+    return await Reaction.upvote(user, post, options);
+  }
+
+  @Router.delete("/reactions/:postId")
+  async deleteUpvote(session: WebSessionDoc, target: ObjectId, options?: ReactionOptions) {
+    const user = WebSession.getUser(session);
+    const post = (await Post.getPosts({ target }))[0]._id;
+    return await Reaction.downvote(user, post, options);
+  }
+
+  @Router.get("/reactions/:postId")
+  async getReactions(target: ObjectId, options?: ReactionOptions) {
+    const post = (await Post.getPosts({ target }))[0]._id;
+    const created = await Reaction.getReactions(post, options);
+    return { msg: created.msg, downvote: await Responses.reaction(created.reaction) };
+  }
+
+  @Router.get("/reactions/:id")
+  async getUserLikes(session: WebSessionDoc, options?: ReactionOptions) {
+    const user = WebSession.getUser(session);
+    const created = await Reaction.getAuthorLikes(user, options);
+    return { msg: created.msg, downvote: await Responses.reaction(created.reaction) };
+  }
+
+  @Router.post("/notifications")
+  async createNotification(session: WebSessionDoc, content: string, options?: NotificationOptions) {
+    const user = WebSession.getUser(session);
+    const created = await Notification.send(user, content, options);
+    return { msg: created.msg, notification: await Responses.notification(created.post) };
+  }
+
+  @Router.post("/notifications/:id")
+  async markAsRead(content: ObjectId, update: Partial<NotificationDoc>) {
+    const notification = await Notification.getNotificationById(content);
+    const created = await Notification.markAsRead(notification[0]._id, update);
+    return { msg: created.msg, notification: await Responses.notification(created.post) };
+  }
+
+  @Router.post("/notifications/:id")
+  async markAsUnread(content: ObjectId, update: Partial<NotificationDoc>) {
+    const notification = await Notification.getNotificationById(content);
+    const created = await Notification.markAsUnread(notification[0]._id, update);
+    return { msg: created.msg, notification: await Responses.notification(created.post) };
+  }
+
+  @Router.get("/notifications")
+  async getRead(content: ObjectId) {
+    const notification = await Notification.getNotificationById(content);
+    return await Notification.listRead(notification[0]._id);
+  }
+
+  @Router.get("/notifications")
+  async getUnread(content: ObjectId) {
+    const notification = await Notification.getNotificationById(content);
+    return await Notification.listUnread(notification[0]._id);
+  }
+
+  @Router.delete("/notifications/:notificationId")
+  async clearNotification(content: ObjectId) {
+    const notificationId = await Notification.getNotificationById(content);
+    return await Notification.clearNotifications(notificationId[0]._id);
+  }
+
+  @Router.post("/notifications")
+  async unsubscribe(user: ObjectId, update: Partial<NotificationDoc>) {
+    const notificationId = await Notification.getNotificationById(user);
+    return await Notification.unsubscribe(notificationId[0]._id, update);
+  }
+
+  @Router.post("/limits/resource")
+  async createSessionLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
+    const resource = concept;
+    return await Limit.setLimit(resource, limit, options);
+  }
+
+  @Router.post("/limits/resource")
+  async createUpvoteLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
+    const resource = concept;
+    return await Limit.setLimit(resource, limit, options);
+  }
+
+  @Router.put("/limits/resource")
+  async decrementSessionLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
+    const resource = concept;
+    return await Limit.decrement(resource, limit, options);
+  }
+
+  @Router.get("/limits/resource")
+  async getRemaining(concept: ObjectId) {
+    const resource = concept;
+    return await Limit.getRemaining(resource);
+  }
+
+  @Router.post("/limits/resource")
+  async resetLimit(concept: ObjectId) {
+    const resource = concept;
+    return await Limit.reset(resource);
+  }
+
+  @Router.get("/limits/resource")
+  async getStatus(concept: ObjectId, options?: LimitOptions) {
+    const resource = concept;
+    return await Limit.getStatus(resource, options);
+  }
+
+  @Router.get("/limits/resource")
+  async getTimeToReset(concept: ObjectId) {
+    const resource = concept;
+    return await Limit.getRemaining(resource);
   }
 }
 
