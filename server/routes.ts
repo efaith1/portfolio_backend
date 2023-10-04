@@ -4,7 +4,7 @@ import { Router, getExpressRouter } from "./framework/router";
 
 import { Friend, Limit, Notification, Post, Reaction, User, WebSession } from "./app";
 import { LimitOptions } from "./concepts/limit";
-import { NotificationDoc, NotificationOptions } from "./concepts/notification";
+import { NotificationOptions } from "./concepts/notification";
 import { PostDoc, PostOptions } from "./concepts/post";
 import { ReactionOptions } from "./concepts/reaction";
 import { UserDoc } from "./concepts/user";
@@ -60,7 +60,7 @@ class Routes {
     return { msg: "Logged out!" };
   }
 
-  @Router.get("/posts") // who wrote this?
+  @Router.get("/posts")
   async getPosts(author?: string) {
     let posts;
     if (author) {
@@ -156,16 +156,26 @@ class Routes {
     // return { msg: created.msg, downvote: await Responses.reaction(created.reaction) };
   }
 
-  @Router.get("/reactions/:_id")
-  async getReactions(_id: ObjectId, options?: ReactionOptions) {
-    const post = (await Post.getPosts({ _id }))[0]._id;
-    return await Reaction.getReactions(post, options);
+  @Router.get("/reactions")
+  async getReactions(author?: string) {
+    let reactions;
+    if (author) {
+      const id = (await User.getUserByUsername(author))._id;
+      reactions = await Reaction.getByAuthor(id);
+    } else {
+      reactions = await Reaction.getReactions({});
+    }
+    return reactions;
   }
 
-  @Router.get("/reactions")
-  async getAuthorUpvotes(session: WebSessionDoc, options?: ReactionOptions) {
-    const user = WebSession.getUser(session);
-    return await Reaction.getAuthorUpvotes(user, options);
+  @Router.get("/reactions/:_id")
+  async getPostReactionCount(_id: ObjectId) {
+    const post = await Post.getPostById(_id); // error handling
+    if (post) {
+      return await Reaction.getByPostId(post[0]._id);
+    } else {
+      return await Reaction.getReactions({});
+    }
   }
 
   @Router.post("/notifications")
@@ -175,33 +185,39 @@ class Routes {
     return { msg: created.msg, notification: await Responses.notification(created.post) }; // could be a problem
   }
 
-  @Router.put("/notifications/:_id")
-  async markAsRead(session: WebSessionDoc, _id: ObjectId, update: Partial<NotificationDoc>) {
+  @Router.post("/notifications/markread/:_id")
+  async markAsRead(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
     await Notification.isAuthor(user, _id);
-    return await Notification.markAsRead(_id, update);
+    return await Notification.markAsRead(_id);
   }
 
-  @Router.put("/notifications/:_id")
-  async markAsUnread(session: WebSessionDoc, _id: ObjectId, update: Partial<NotificationDoc>) {
+  @Router.post("/notifications/markunread/:_id")
+  async markAsUnread(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
     await Notification.isAuthor(user, _id);
-    return await Notification.markAsUnread(_id, update);
+    return await Notification.markAsUnread(_id);
   }
 
-  @Router.put("/notifications")
-  async unsubscribe(session: WebSessionDoc, update: Partial<NotificationDoc>) {
+  @Router.post("/notifications/unsubscribe")
+  async unsubscribe(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
-    return await Notification.unsubscribe(user, update);
+    return await Notification.unsubscribe(user);
   }
 
   @Router.get("/notifications")
+  async getAll(session: WebSessionDoc) {
+    const user = WebSession.getUser(session);
+    return await Notification.getNotifications(user);
+  }
+
+  @Router.get("/notifications/read")
   async getRead(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
     return await Notification.getRead(user);
   }
 
-  @Router.get("/notifications")
+  @Router.get("/notifications/unread")
   async getUnread(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
     return await Notification.getUnread(user);
@@ -209,9 +225,9 @@ class Routes {
 
   @Router.delete("/notifications/:_notificationId")
   async clearNotification(session: WebSessionDoc, _notificationId: ObjectId) {
-    const user = WebSession.getUser(session);
-    await Notification.isAuthor(user, _notificationId);
-    return await Notification.clearNotifications(_notificationId);
+    // const user = WebSession.getUser(session);
+    // await Notification.isAuthor(user, _notificationId);
+    return await Notification.deleteNotification(_notificationId);
   }
 
   @Router.post("/limits/resource")

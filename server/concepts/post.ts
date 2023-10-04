@@ -32,6 +32,15 @@ export default class PostConcept {
     return await this.getPosts({ author });
   }
 
+  async getPostById(_id: ObjectId) {
+    const post = await this.posts.readOne({ _id });
+    if (post === null) {
+      throw new NotFoundError(`Post not found!`);
+    }
+    // return await this.posts.readOne({ _id });
+    return this.getPosts({ _id });
+  }
+
   async update(_id: ObjectId, update: Partial<PostDoc>) {
     this.sanitizeUpdate(update);
     await this.posts.updateOne({ _id }, update);

@@ -35,30 +35,44 @@ export default class NotificationConcept {
     return { msg: "Notification sent successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
-  async markAsRead(_notificationId: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.updateOne({ _notificationId }, update);
+  async markAsRead(_notificationId: ObjectId) {
+    const update: Partial<NotificationDoc> = { read: true };
+    const _id = await this.notifications.replaceOne({ _notificationId }, update);
     return { msg: "Notification marked as Read successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
-  async markAsUnread(_notificationId: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.updateOne({ _notificationId }, update);
+  async markAsUnread(_notificationId: ObjectId) {
+    const update: Partial<NotificationDoc> = { read: false };
+    const _id = await this.notifications.replaceOne({ _notificationId }, update);
     return { msg: "Notification marked as Unread successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
   async getRead(recipientId: ObjectId) {
-    return await this.getNotifications({ recipientId, read: true });
+    const query: Filter<NotificationDoc> = {
+      recipientId,
+      read: true,
+    };
+    return await this.getNotifications(query);
   }
 
   async getUnread(recipientId: ObjectId) {
-    return await this.getNotifications({ recipientId, read: false });
+    const query: Filter<NotificationDoc> = {
+      recipientId,
+      read: false,
+    };
+    return await this.getNotifications(query);
   }
 
+  async deleteNotification(notificationId: ObjectId) {
+    return await this.notifications.deleteOne({ notificationId });
+  }
   async clearNotifications(notificationId: ObjectId) {
     return await this.clearNotificationHelper({ notificationId }); // delete one vs delete all (user ID)
   }
 
-  async unsubscribe(user: ObjectId, update: Partial<NotificationDoc>) {
-    const _id = await this.notifications.updateOne({ user }, update);
+  async unsubscribe(user: ObjectId) {
+    const update: Partial<NotificationDoc> = { canSend: false };
+    const _id = await this.notifications.replaceOne({ user }, update);
     return { msg: "User unsubscribed successfully!", post: await this.notifications.readOne({ _id }) };
   }
 

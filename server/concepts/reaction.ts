@@ -17,42 +17,47 @@ export interface ReactionDoc extends BaseDoc {
 export default class ReactionConcept {
   public readonly reactions = new DocCollection<ReactionDoc>("reactions");
 
-  async getReactionsHelper(query: Filter<ReactionDoc>) {
-    const posts = await this.reactions.readMany(query, {
-      sort: { dateUpdated: -1 },
-    });
-    return posts;
-  }
-
   async upvote(author: ObjectId, target: ObjectId, options?: ReactionOptions) {
     // error handling
-    const alreadyUpvoted = await this.getReactionsHelper({ author, target });
+    const alreadyUpvoted = await this.getReactions({ author, target });
     if (alreadyUpvoted.length !== 0) {
       await this.downvote(author, target);
     } else {
       const _id = await this.reactions.createOne({ author, target, options });
-      return { msg: "Upvote successfully posted!", reaction: await this.reactions.readOne({ _id }) };
+      return { msg: "Upvote created successfully!", reaction: await this.reactions.readOne({ _id }) };
     }
   }
 
   async downvote(author: ObjectId, target: ObjectId, options?: ReactionOptions) {
-    const alreadyDownvoted = await this.getReactionsHelper({ author, target });
+    const alreadyDownvoted = await this.getReactions({ author, target });
     if (alreadyDownvoted.length === 0) {
       await this.upvote(author, target);
     } else {
       const _id = await this.reactions.deleteOne({ author, target, options });
-      return { msg: "Downvote successfully posted!", reaction: await this.reactions.readOne({ _id }) };
+      return { msg: "Downvote posted successfully!", reaction: await this.reactions.readOne({ _id }) };
     }
   }
 
-  async getReactions(target: ObjectId, options?: ReactionOptions) {
-    const _id = await this.getReactionsHelper({ target, options });
-    return { msg: "Reaction count retrieved successfully!", reaction: await this.reactions.readOne({ _id }) };
+  async getReactions(query: Filter<ReactionDoc>) {
+    const reactions = await this.reactions.readMany(query, {
+      sort: { dateUpdated: -1 },
+    });
+    return reactions;
   }
 
-  async getAuthorUpvotes(author: ObjectId, options?: ReactionOptions) {
-    const _id = await this.getReactionsHelper({ author, options });
-    return { msg: "Author's reactions retrieved successfully!", reaction: await this.reactions.readOne({ _id }) };
+  async getByAuthor(author: ObjectId) {
+    return await this.getReactions({ author });
+  }
+
+  async getByPostId(_id: ObjectId) {
+    let count = 0;
+    const reactions = await this.getReactions({ _id });
+    for (const i in reactions) {
+      if (i === _id.toString()) {
+        count = count + 1;
+      }
+    }
+    return count;
   }
 
   async isAuthor(user: ObjectId, _id: ObjectId) {

@@ -90,10 +90,10 @@ const operations: operation[] = [
     fields: { postId: "input" },
   },
   {
-    name: "Get Reactions",
-    endpoint: "/api/reactions/:postId",
+    name: "Get Posts's Reaction Count",
+    endpoint: "/api/reactions/target",
     method: "GET",
-    fields: { postId: "input" },
+    fields: { target: "input" },
   },
   {
     name: "Get User's Upvoted Posts",
@@ -109,25 +109,31 @@ const operations: operation[] = [
   },
   {
     name: "Mark As Read",
-    endpoint: "/api/notifications/:notificationId",
-    method: "PUT",
+    endpoint: "/api/notifications/markread/:notificationId",
+    method: "POST",
     fields: { notificationId: "input" },
   },
   {
     name: "Mark As Unread",
-    endpoint: "/api/notifications/:notificationId",
-    method: "PUT",
+    endpoint: "/api/notifications/markunread/:notificationId",
+    method: "POST",
     fields: { notificationId: "input" },
   },
   {
-    name: "Get Read Notifications",
+    name: "Get All Notifications",
     endpoint: "/api/notifications",
     method: "GET",
     fields: { recipient: "input" },
   },
   {
+    name: "Get Read Notifications",
+    endpoint: "/api/notifications/read",
+    method: "GET",
+    fields: { recipient: "input" },
+  },
+  {
     name: "Get Unread Notifications",
-    endpoint: "/api/notifications",
+    endpoint: "/api/notifications/unread",
     method: "GET",
     fields: { recipient: "input" },
   },
@@ -139,8 +145,8 @@ const operations: operation[] = [
   },
   {
     name: "Unsubscribe from Notifications",
-    endpoint: "/api/notifications",
-    method: "PUT",
+    endpoint: "/api/notifications/unsubscribe",
+    method: "POST",
     fields: { userId: "input" },
   },
   {
