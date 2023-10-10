@@ -85,19 +85,19 @@ const operations: operation[] = [
   },
   {
     name: "Delete Upvote",
-    endpoint: "/api/reactions/:postId",
+    endpoint: "/api/reactions/:postId", // TODO is the ID needed here
     method: "DELETE",
     fields: { postId: "input" },
   },
   {
     name: "Get Posts's Reaction Count",
-    endpoint: "/api/reactions/target",
+    endpoint: "/api/reactions",
     method: "GET",
     fields: { target: "input" },
   },
   {
     name: "Get User's Upvoted Posts",
-    endpoint: "/api/reactions",
+    endpoint: "/api/reactions/:user",
     method: "GET",
     fields: { author: "input" },
   },

@@ -1,7 +1,7 @@
 import { Filter, ObjectId } from "mongodb";
 
 import DocCollection, { BaseDoc } from "../framework/doc";
-import { NotAllowedError, NotFoundError } from "./errors";
+import { NotAllowedError } from "./errors";
 
 export interface ReactionOptions {
   backgroundColor?: string;
@@ -18,24 +18,21 @@ export default class ReactionConcept {
   public readonly reactions = new DocCollection<ReactionDoc>("reactions");
 
   async upvote(author: ObjectId, target: ObjectId, options?: ReactionOptions) {
-    // error handling
-    const alreadyUpvoted = await this.getReactions({ author, target });
-    if (alreadyUpvoted.length !== 0) {
-      await this.downvote(author, target);
-    } else {
-      const _id = await this.reactions.createOne({ author, target, options });
-      return { msg: "Upvote created successfully!", reaction: await this.reactions.readOne({ _id }) };
+    const existingReaction = await this.reactions.readOne({ author, target });
+    if (existingReaction) {
+      throw new Error("User has already upvoted this post.");
     }
+    const _id = await this.reactions.createOne({ author, target, options });
+    return { msg: "Upvote created successfully!", reaction: await this.reactions.readOne({ _id }) };
   }
 
   async downvote(author: ObjectId, target: ObjectId, options?: ReactionOptions) {
-    const alreadyDownvoted = await this.getReactions({ author, target });
-    if (alreadyDownvoted.length === 0) {
-      await this.upvote(author, target);
-    } else {
-      const _id = await this.reactions.deleteOne({ author, target, options });
-      return { msg: "Downvote posted successfully!", reaction: await this.reactions.readOne({ _id }) };
+    const reaction = await this.reactions.readOne({ author, target });
+    if (!reaction) {
+      throw new Error("User has not upvoted this post.");
     }
+    const _id = await this.reactions.deleteOne({ author, target, options });
+    return { msg: "Downvote created successfully!", reaction: await this.reactions.readOne({ _id }) };
   }
 
   async getReactions(query: Filter<ReactionDoc>) {
@@ -45,29 +42,13 @@ export default class ReactionConcept {
     return reactions;
   }
 
-  async getByAuthor(author: ObjectId) {
-    return await this.getReactions({ author });
-  }
-
-  async getByPostId(_id: ObjectId) {
-    let count = 0;
-    const reactions = await this.getReactions({ _id });
-    for (const i in reactions) {
-      if (i === _id.toString()) {
-        count = count + 1;
-      }
-    }
+  async getByPostId(target: ObjectId) {
+    const count = await this.reactions.count({ author: target }); // TODO I've tried, I have
     return count;
   }
 
-  async isAuthor(user: ObjectId, _id: ObjectId) {
-    const reaction = await this.reactions.readOne({ _id });
-    if (!reaction) {
-      throw new NotFoundError(`reaction ${_id} does not exist!`);
-    }
-    if (reaction.author.toString() !== user.toString()) {
-      throw new ReactionAuthorNotMatchError(user, _id);
-    }
+  async getByAuthor(author: ObjectId) {
+    return await this.getReactions({ author: author });
   }
 }
 
@@ -76,6 +57,6 @@ export class ReactionAuthorNotMatchError extends NotAllowedError {
     public readonly author: ObjectId,
     public readonly _id: ObjectId,
   ) {
-    super("{0} is not the author of reaaction {1}!", author, _id);
+    super("{0} is not the author of reaction {1}!", author, _id);
   }
 }

@@ -140,42 +140,50 @@ class Routes {
     return await Friend.rejectRequest(fromId, user);
   }
 
-  @Router.post("/reactions/:_id")
+  /**
+   * @param session current session
+   * @param _id id of content user is reacting to
+   * @param options optional options
+   * @returns a new upvote for post _id from user in session
+   */
+  @Router.post("/reactions/:_id") // TODO is it okay to mention other concepts in this route, eg post/id/reactions?
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
-    const post = (await Post.getPosts({ _id }))[0]._id;
-    return await Reaction.upvote(user, post, options);
-    // return { msg: created.msg, downvote: await Responses.reaction(created.reaction) };
+    const post = (await Post.getPostById(_id))._id; //error handled here
+    const created = await Reaction.upvote(user, post, options);
+    return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
   }
 
-  @Router.delete("/reactions/:_id")
+  @Router.delete("/reactions/:_id") // TODO same as above
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
-    const post = (await Post.getPosts({ _id }))[0]._id;
-    return await Reaction.downvote(user, post, options);
-    // return { msg: created.msg, downvote: await Responses.reaction(created.reaction) };
+    const post = (await Post.getPostById(_id))._id; //errors handled here
+    // await Reaction.isAuthor(user, _id);
+    const deleted = await Reaction.downvote(user, post, options);
+    return { msg: deleted.msg, upvote: await Responses.reaction(deleted.reaction) };
   }
 
   @Router.get("/reactions")
+  async getPostReactionCount(_id: ObjectId) {
+    return await Reaction.getByPostId(_id);
+  }
+
+  @Router.get("/reactions/:user")
   async getReactions(author?: string) {
+    // Citation: posts implementation above and gpt for debugging
     let reactions;
     if (author) {
-      const id = (await User.getUserByUsername(author))._id;
+      //TODO should not take a user's ID, right?
+      const id = (await User.getUserByUsername(author))._id; //errors handled here
       reactions = await Reaction.getByAuthor(id);
+      const upvotedPostIds = reactions.map((reaction) => reaction.target);
+      // Retrieve the posts corresponding to the upvotedPostIds
+      const upvotedPosts = await Post.getPosts({ _id: { $in: upvotedPostIds } });
+      reactions = upvotedPosts;
     } else {
       reactions = await Reaction.getReactions({});
     }
     return reactions;
-  }
-
-  @Router.get("/reactions/:_id")
-  async getPostReactionCount(_id: ObjectId) {
-    const post = await Post.getPostById(_id); // error handling
-    if (post) {
-      return await Reaction.getByPostId(post[0]._id);
-    } else {
-      return await Reaction.getReactions({});
-    }
   }
 
   @Router.post("/notifications")

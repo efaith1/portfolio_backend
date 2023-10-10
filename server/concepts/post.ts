@@ -34,11 +34,10 @@ export default class PostConcept {
 
   async getPostById(_id: ObjectId) {
     const post = await this.posts.readOne({ _id });
-    if (post === null) {
-      throw new NotFoundError(`Post not found!`);
+    if (!post) {
+      throw new NotFoundError(`ID you provided matches post not found!`);
     }
-    // return await this.posts.readOne({ _id });
-    return this.getPosts({ _id });
+    return post;
   }
 
   async update(_id: ObjectId, update: Partial<PostDoc>) {
