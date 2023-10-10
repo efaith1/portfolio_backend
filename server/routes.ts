@@ -49,15 +49,50 @@ class Routes {
 
   @Router.post("/login")
   async logIn(session: WebSessionDoc, username: string, password: string) {
-    const u = await User.authenticate(username, password);
-    WebSession.start(session, u._id);
-    return { msg: "Logged in!" };
+    try {
+      const u = await User.authenticate(username, password);
+      const timeLoggedIn = WebSession.calculateTimeLoggedIn(session);
+      const decremented = await Limit.decrement(u._id, timeLoggedIn);
+      if (decremented) {
+        WebSession.start(session, u._id);
+        return { msg: "Logged in!" };
+      } else {
+        // Decrement failed (limit not found or insufficient remaining limit)
+        throw new Error("Login limit exceeded.");
+      }
+    } catch (error) {
+      throw new Error("Authentication failed.");
+    }
   }
 
   @Router.post("/logout")
   async logOut(session: WebSessionDoc) {
     WebSession.end(session);
     return { msg: "Logged out!" };
+  }
+
+  @Router.post("/backgroundcheck")
+  async backgroundCheck() {
+    const loggedInSessions = WebSession.getActiveSessions(); // Implement this function
+    loggedInSessions.forEach(async (session) => {
+      try {
+        // Calculate the time elapsed since the last check (you need to implement this)
+        const timeElapsed = WebSession.calculateTimeLoggedIn(session); // Implement this function
+        const user = WebSession.getUser(session);
+
+        // Decrement the time limit based on the elapsed time
+        const decremented = await Limit.decrement(user, timeElapsed);
+        const getRemaining = await Limit.getRemaining(user);
+
+        if (decremented && getRemaining.remaining <= 0) {
+          // The time limit has expired, log the user out
+          WebSession.end(session);
+        }
+      } catch (error) {
+        console.error("Error checking time limit:", error);
+      }
+    });
+    setInterval(this.backgroundCheck, 3 * 60 * 1000); // Run every 3 minutes
   }
 
   @Router.get("/posts")
@@ -256,7 +291,7 @@ class Routes {
   }
 
   @Router.delete("/notifications")
-  async clearNotificationsRouter(session: WebSessionDoc, author?: string) {
+  async clearNotifications(session: WebSessionDoc, author?: string) {
     try {
       if (author) {
         const id = (await User.getUserByUsername(author))._id;
@@ -300,45 +335,34 @@ class Routes {
   }
 
   @Router.post("/limits/resource")
-  async createSessionLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
-    const resource = concept;
-    return await Limit.setLimit(resource, limit, options);
-  }
-
-  @Router.post("/limits/resource")
-  async createUpvoteLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
-    const resource = concept;
+  async createLimit(resource: ObjectId, limit: number, options?: LimitOptions) {
     return await Limit.setLimit(resource, limit, options);
   }
 
   @Router.put("/limits/resource")
-  async decrementSessionLimit(concept: ObjectId, limit: Number, options?: LimitOptions) {
-    const resource = concept;
-    return await Limit.decrement(resource, limit, options);
+  async decrementLimit(resource: ObjectId, limit: number) {
+    const auth = await User.getUserById(resource);
+    return await Limit.decrement(auth._id, limit);
   }
 
   @Router.get("/limits/resource")
-  async getRemaining(concept: ObjectId) {
-    const resource = concept;
+  async getRemaining(resource: ObjectId) {
     return await Limit.getRemaining(resource);
   }
 
-  @Router.post("/limits/resource")
-  async resetLimit(concept: ObjectId) {
-    const resource = concept;
+  @Router.put("/limits/reset")
+  async resetLimit(resource: ObjectId) {
     return await Limit.reset(resource);
   }
 
-  @Router.get("/limits/resource")
-  async getStatus(concept: ObjectId, options?: LimitOptions) {
-    const resource = concept;
-    return await Limit.getStatus(resource, options);
+  @Router.get("/limits/status")
+  async getStatus(resource: ObjectId) {
+    return await Limit.getStatus(resource);
   }
 
-  @Router.get("/limits/resource")
-  async getTimeToReset(concept: ObjectId) {
-    const resource = concept;
-    return await Limit.getRemaining(resource);
+  @Router.get("/limits/waitime")
+  async getTimeToReset(resource: ObjectId) {
+    return await Limit.timeUntilReset(resource);
   }
 }
 

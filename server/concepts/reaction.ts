@@ -43,8 +43,8 @@ export default class ReactionConcept {
   }
 
   async getByPostId(target: ObjectId) {
-    const count = await this.reactions.count({ author: target }); // TODO I've tried, I have
-    return count;
+    const count = await this.getReactions({ target: target }); // TODO I've tried, I have
+    return count.length;
   }
 
   async getByAuthor(author: ObjectId) {
