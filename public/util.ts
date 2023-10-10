@@ -110,13 +110,13 @@ const operations: operation[] = [
   {
     name: "Mark As Read",
     endpoint: "/api/notifications/markread/:notificationId",
-    method: "POST",
+    method: "PUT",
     fields: { notificationId: "input" },
   },
   {
     name: "Mark As Unread",
     endpoint: "/api/notifications/markunread/:notificationId",
-    method: "POST",
+    method: "PUT",
     fields: { notificationId: "input" },
   },
   {
@@ -144,9 +144,21 @@ const operations: operation[] = [
     fields: { notificationId: "input" },
   },
   {
+    name: "Clear all Notifications",
+    endpoint: "/api/notifications",
+    method: "DELETE",
+    fields: { recipient: "input" },
+  },
+  {
     name: "Unsubscribe from Notifications",
     endpoint: "/api/notifications/unsubscribe",
-    method: "POST",
+    method: "PUT",
+    fields: { userId: "input" },
+  },
+  {
+    name: "Subscribe to Notifications",
+    endpoint: "/api/notifications/subscribe",
+    method: "PUT",
     fields: { userId: "input" },
   },
   {

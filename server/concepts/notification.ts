@@ -31,59 +31,99 @@ export default class NotificationConcept {
   }
 
   async send(recipient: ObjectId, content: string, options?: NotificationOptions) {
-    const _id = await this.notifications.createOne({ recipient, content, options });
+    const _id = await this.notifications.createOne({ recipient, content, read: false, canSend: true, options });
     return { msg: "Notification sent successfully!", post: await this.notifications.readOne({ _id }) };
   }
 
   async markAsRead(_notificationId: ObjectId) {
-    const update: Partial<NotificationDoc> = { read: true };
-    const _id = await this.notifications.replaceOne({ _notificationId }, update);
-    return { msg: "Notification marked as Read successfully!", post: await this.notifications.readOne({ _id }) };
+    const existingNotification = await this.notifications.readOne({ _id: _notificationId });
+    if (!existingNotification) {
+      throw new Error("Notification not found");
+    }
+    const update = { read: true };
+    const marked = await this.notifications.updateOne({ _id: _notificationId }, update);
+    return { msg: "Notification marked as Read successfully!", marked };
   }
 
   async markAsUnread(_notificationId: ObjectId) {
-    const update: Partial<NotificationDoc> = { read: false };
-    const _id = await this.notifications.replaceOne({ _notificationId }, update);
-    return { msg: "Notification marked as Unread successfully!", post: await this.notifications.readOne({ _id }) };
+    const existingNotification = await this.notifications.readOne({ _id: _notificationId });
+    if (!existingNotification) {
+      throw new Error("Notification not found");
+    }
+    const update = { read: false };
+    const unmarked = await this.notifications.updateOne({ _id: _notificationId }, update);
+    return { msg: "Notification marked as Unread successfully!", unmarked };
   }
 
   async getRead(recipientId: ObjectId) {
-    const query: Filter<NotificationDoc> = {
-      recipientId,
+    const query = {
+      recipient: recipientId,
       read: true,
     };
     return await this.getNotifications(query);
   }
 
   async getUnread(recipientId: ObjectId) {
-    const query: Filter<NotificationDoc> = {
-      recipientId,
+    const query = {
+      recipient: recipientId,
       read: false,
     };
     return await this.getNotifications(query);
   }
 
   async deleteNotification(notificationId: ObjectId) {
-    return await this.notifications.deleteOne({ notificationId });
+    const existingNotification = await this.notifications.readOne({ _id: notificationId });
+    if (!existingNotification) {
+      throw new Error("Notification not found");
+    }
+    return await this.notifications.deleteOne({ _id: notificationId });
   }
-  async clearNotifications(notificationId: ObjectId) {
-    return await this.clearNotificationHelper({ notificationId }); // delete one vs delete all (user ID)
+
+  async clearNotifications(recipientId: ObjectId) {
+    return await this.clearNotificationHelper({ recipient: recipientId });
   }
 
   async unsubscribe(user: ObjectId) {
-    const update: Partial<NotificationDoc> = { canSend: false };
-    const _id = await this.notifications.replaceOne({ user }, update);
-    return { msg: "User unsubscribed successfully!", post: await this.notifications.readOne({ _id }) };
+    const userNotification = await this.notifications.readOne({ recipient: user });
+    if (!userNotification) {
+      throw new Error("User is already unsubscribed");
+    }
+    if (userNotification.canSend === false) {
+      throw new Error("User is already unsubscribed");
+    }
+    const update = { canSend: false };
+    const unsubscribed = await this.notifications.updateOne({ recipient: user }, update);
+    return { msg: "Recipient unsubscribed successfully!", unsubscribed };
   }
 
-  async isAuthor(user: ObjectId, _id: ObjectId) {
-    const notification = await this.notifications.readOne({ _id });
-    if (!notification) {
-      throw new NotFoundError(`notification ${_id} does not exist!`);
+  async subscribe(user: ObjectId) {
+    const userNotification = await this.notifications.readOne({ recipient: user });
+    if (userNotification) {
+      if (userNotification.canSend) {
+        throw new Error("User is already subscribed");
+      }
+    }
+    const update = { canSend: true };
+    const subscribed = await this.notifications.updateOne({ recipient: user }, update);
+    return { msg: "Recipient subscribed successfully!", subscribed };
+  }
+
+  async isRecipient(user: ObjectId, _notificationId: ObjectId) {
+    const notification = await this.notifications.readOne({ _id: _notificationId });
+    if (notification === null) {
+      throw new NotFoundError(`notification ${_notificationId} does not exist!`);
     }
     if (notification.recipient.toString() !== user.toString()) {
-      throw new NotificationAuthorNotMatchError(user, _id);
+      throw new NotificationAuthorNotMatchError(user, _notificationId);
     }
+  }
+
+  async checkCanSend(user: ObjectId) {
+    const userNotification = await this.notifications.readOne({ recipient: user });
+    if (!userNotification) {
+      return true;
+    }
+    return userNotification.canSend;
   }
 }
 

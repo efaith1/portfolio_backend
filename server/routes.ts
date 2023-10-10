@@ -189,53 +189,114 @@ class Routes {
   @Router.post("/notifications")
   async createNotification(session: WebSessionDoc, content: string, options?: NotificationOptions) {
     const user = WebSession.getUser(session);
+    const userCanSendNotifications = await Notification.checkCanSend(user);
+    if (userCanSendNotifications === false) {
+      throw new Error("Recipient cannot receive notifications");
+    }
     const created = await Notification.send(user, content, options);
-    return { msg: created.msg, notification: await Responses.notification(created.post) }; // could be a problem
+    return { msg: created.msg, notification: await Responses.notification(created.post) };
   }
 
-  @Router.post("/notifications/markread/:_id")
+  @Router.put("/notifications/markread/:_id")
   async markAsRead(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
-    await Notification.isAuthor(user, _id);
+    await Notification.isRecipient(user, _id);
     return await Notification.markAsRead(_id);
   }
 
-  @Router.post("/notifications/markunread/:_id")
+  @Router.put("/notifications/markunread/:_id")
   async markAsUnread(session: WebSessionDoc, _id: ObjectId) {
     const user = WebSession.getUser(session);
-    await Notification.isAuthor(user, _id);
+    await Notification.isRecipient(user, _id);
     return await Notification.markAsUnread(_id);
   }
 
-  @Router.post("/notifications/unsubscribe")
-  async unsubscribe(session: WebSessionDoc) {
-    const user = WebSession.getUser(session);
-    return await Notification.unsubscribe(user);
-  }
-
   @Router.get("/notifications")
-  async getAll(session: WebSessionDoc) {
-    const user = WebSession.getUser(session);
-    return await Notification.getNotifications(user);
+  async getAll(author?: string) {
+    let notifications;
+    if (author) {
+      const id = (await User.getUserByUsername(author))._id;
+      notifications = await Notification.getNotifications({ id });
+    } else {
+      notifications = await Notification.getNotifications({});
+    }
+    return Responses.notifications(notifications);
   }
 
   @Router.get("/notifications/read")
-  async getRead(session: WebSessionDoc) {
-    const user = WebSession.getUser(session);
-    return await Notification.getRead(user);
+  async getReadNotifications(author?: string) {
+    if (author) {
+      const id = (await User.getUserByUsername(author))._id;
+      return await Notification.getRead(id);
+    } else {
+      return { msg: "Could not get read" };
+    }
   }
 
   @Router.get("/notifications/unread")
-  async getUnread(session: WebSessionDoc) {
-    const user = WebSession.getUser(session);
-    return await Notification.getUnread(user);
+  async getUnreadNotifications(author?: string) {
+    if (author) {
+      const id = (await User.getUserByUsername(author))._id;
+      return await Notification.getUnread(id);
+    } else {
+      return { msg: "Could not get unread" };
+    }
   }
 
   @Router.delete("/notifications/:_notificationId")
-  async clearNotification(session: WebSessionDoc, _notificationId: ObjectId) {
-    // const user = WebSession.getUser(session);
-    // await Notification.isAuthor(user, _notificationId);
-    return await Notification.deleteNotification(_notificationId);
+  async deleteNotification(session: WebSessionDoc, _notificationId: ObjectId) {
+    const user = WebSession.getUser(session);
+    try {
+      await Notification.isRecipient(user, _notificationId);
+      const result = await Notification.deleteNotification(_notificationId);
+      return { msg: "Notification deleted successfully", result };
+    } catch (error) {
+      return { msg: "Error deleting notification", error };
+    }
+  }
+
+  @Router.delete("/notifications")
+  async clearNotificationsRouter(session: WebSessionDoc, author?: string) {
+    try {
+      if (author) {
+        const id = (await User.getUserByUsername(author))._id;
+        const result = await Notification.clearNotifications(id);
+        return { msg: "Notifications cleared successfully", result };
+      } else {
+        return { msg: "Could not clear notifications" };
+      }
+    } catch (error) {
+      // Handle errors here
+      console.error("Error clearing notifications:", error);
+      return { error: "An error occurred while clearing notifications" };
+    }
+    // const user = WebSession.getUser(session); // TODO is recipient with userId
+    // try {
+    //   if (author) {
+    //     const id = (await User.getUserByUsername(author))._id;
+    //     await Notification.isRecipient(user, _notificationId);
+    //   const result = await Notification.deleteNotification(_notificationId);
+    //   return { msg: "Notification deleted successfully", result };
+    //     return await Notification.clearNotifications(id);
+    //   }
+    // } catch (error) {
+    //   // Handle errors, such as unauthorized access or notification not found
+    //   return { msg: "You cannot delete unless you are the recipient", error };
+    // }
+  }
+
+  @Router.put("/notifications/unsubscribe")
+  async unsubscribe(session: WebSessionDoc) {
+    const user = WebSession.getUser(session);
+    const auth = await User.getUserById(user);
+    return await Notification.unsubscribe(auth._id);
+  }
+
+  @Router.put("/notifications/subscribe")
+  async subscribe(session: WebSessionDoc) {
+    const user = WebSession.getUser(session);
+    const auth = await User.getUserById(user);
+    return await Notification.subscribe(auth._id);
   }
 
   @Router.post("/limits/resource")
