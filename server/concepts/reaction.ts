@@ -27,7 +27,7 @@ export default class ReactionConcept {
   }
 
   async downvote(author: ObjectId, target: ObjectId, options?: ReactionOptions) {
-    const reaction = await this.reactions.readOne({ author, target });
+    const reaction = await this.reactions.readOne({ author: author, target: target });
     if (!reaction) {
       throw new Error("User has not upvoted this post.");
     }

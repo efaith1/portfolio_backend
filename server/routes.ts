@@ -33,13 +33,6 @@ class Routes {
     WebSession.isLoggedOut(session);
     return await User.create(username, password);
   }
-  // WebSession.isLoggedOut(session);
-  //   const user = await User.create(username, password);
-  //   if (user.user?._id) {
-  //     console.log("applied to whom", user.user._id);
-  //     void Limit.setLimit(user.user._id, 20);
-  //     return { msg: "User account created successfully!" };
-  //   }
 
   @Router.patch("/users")
   async updateUser(session: WebSessionDoc, update: Partial<UserDoc>) {
@@ -92,8 +85,8 @@ class Routes {
         const user = WebSession.getUser(session);
 
         // Decrement the time limit based on the elapsed time
-        const decremented = await Limit.decrement(user, 3); // will this over-delete?
-        const getRemaining = await Limit.getRemaining(user);
+        const decremented = await Limit.decrement(user, 3, "session"); // will this over-delete?
+        const getRemaining = await Limit.getRemaining(user, "session");
 
         if (decremented && getRemaining.remaining <= 0) {
           // The time limit has expired, log the user out
@@ -189,37 +182,43 @@ class Routes {
   @Router.post("/reactions/:_id")
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
-    const post = (await Post.getPostById(_id))._id; //error handled here
-    const created = await Reaction.upvote(user, post, options);
-    return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
-    // const getRemaining = await Limit.getRemaining(user);
-    // if (getRemaining.remaining >= 0) {
-    //   await Limit.decrement(user, 1);
-    //   const created = await Reaction.upvote(user, post, options);
-    //   return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
-    // } else {
-    //   return { msg: "Reaction limit exceeded" };
-    // }
+    const post = (await Post.getPostById(_id))._id;
+    try {
+      await Limit.getRemaining(user, "reaction");
+      await Limit.decrement(user, 1, "reaction");
+      const created = await Reaction.upvote(user, post, options);
+      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+    } catch (error) {
+      await Limit.setLimit(user, 20, "reaction");
+      await Limit.decrement(user, 1, "reaction");
+      const created = await Reaction.upvote(user, post, options);
+      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+    }
   }
 
   @Router.delete("/reactions/:_id")
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
-    const post = (await Post.getPostById(_id))._id; //error handled here
-    const created = await Reaction.downvote(user, post, options);
-    return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
-
-    // const user = WebSession.getUser(session);
-    // const post = (await Post.getPostById(_id))._id; //errors handled here
-    // const getRemaining = await Limit.getRemaining(user);
-    // if (getRemaining.remaining >= 0) {
-    //   await Limit.decrement(user, 1);
-    //   // await Reaction.isAuthor(user, _id);
-    //   const deleted = await Reaction.downvote(user, post, options);
-    //   return { msg: deleted.msg, upvote: await Responses.reaction(deleted.reaction) };
-    // } else {
-    //   return { msg: "Reaction limit exceeded" };
-    // }
+    const post = (await Post.getPostById(_id))._id;
+    try {
+      const limit = await Limit.getRemaining(user, "reaction");
+      if (limit.remaining > 0) {
+        try {
+          const created = await Reaction.downvote(user, post, options);
+          await Limit.decrement(user, 1, "reaction");
+          return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+        } catch (error) {
+          return { msg: "User has not upvoted this post." };
+        }
+      } else {
+        return { msg: "You have run out of resources. Try again in " + (await Limit.timeUntilReset(user, "reaction")) };
+      }
+    } catch (error) {
+      await Limit.setLimit(user, 20, "reaction");
+      const created = await Reaction.downvote(user, post, options);
+      await Limit.decrement(user, 1, "reaction");
+      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+    }
   }
 
   @Router.get("/reactions")
@@ -339,33 +338,33 @@ class Routes {
   }
 
   @Router.post("/limits/resource")
-  async createLimit(resource: ObjectId, limit: number, options?: LimitOptions) {
-    return await Limit.setLimit(resource, limit, options);
+  async createLimit(resource: ObjectId, limit: number, type: string, options?: LimitOptions) {
+    return await Limit.setLimit(resource, limit, type, options);
   }
 
   @Router.put("/limits/resource") // need user not found and user is recipient for all limits
-  async decrementLimit(resource: ObjectId, limit: number) {
-    return await Limit.decrement(resource, limit);
+  async decrementLimit(resource: ObjectId, limit: number, type: string) {
+    return await Limit.decrement(resource, limit, type);
   }
 
   @Router.get("/limits/resource")
-  async getRemaining(resource: ObjectId) {
-    return await Limit.getRemaining(resource);
+  async getRemaining(resource: ObjectId, type: string) {
+    return await Limit.getRemaining(resource, type);
   }
 
   @Router.put("/limits/reset")
-  async resetLimit(resource: ObjectId) {
-    return await Limit.reset(resource);
+  async resetLimit(resource: ObjectId, type: string) {
+    return await Limit.reset(resource, type);
   }
 
   @Router.get("/limits/status")
-  async getStatus(resource: ObjectId) {
-    return await Limit.getStatus(resource);
+  async getStatus(resource: ObjectId, type: string) {
+    return await Limit.getStatus(resource, type);
   }
 
   @Router.get("/limits/waitime") // need user not found and user is recipient for all limits
-  async getTimeToReset(resource: ObjectId) {
-    return await Limit.timeUntilReset(resource);
+  async getTimeToReset(resource: ObjectId, type: string) {
+    return await Limit.timeUntilReset(resource, type);
   }
 }
 

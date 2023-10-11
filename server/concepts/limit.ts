@@ -8,6 +8,7 @@ export interface LimitOptions {
 
 export interface LimitDoc extends BaseDoc {
   resource: ObjectId;
+  type: string;
   limit: number;
   remaining: number;
   resetTime: number;
@@ -17,7 +18,7 @@ export interface LimitDoc extends BaseDoc {
 export default class LimitConcept {
   public readonly limits = new DocCollection<LimitDoc>("limits");
 
-  async setLimit(resource: ObjectId, limit: number, options?: LimitOptions) {
+  async setLimit(resource: ObjectId, limit: number, type: string, options?: LimitOptions) {
     const existingLimit = await this.limits.readOne({ resource });
     const resetTime = Date.now() + 24 * 3600000; // 24 hours in milliseconds
 
@@ -29,67 +30,66 @@ export default class LimitConcept {
       return { msg: "Limit reset successfully to a new limit", update: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
     } else {
       const newLimit = {
-        resource: resource,
+        resource: new ObjectId(resource),
+        type: type,
         limit: limit,
         remaining: limit,
         resetTime: resetTime,
         options: options,
       };
-      return { msg: "Limit successfully created!", applied_to: await this.limits.createOne(newLimit) };
+      return { msg: "Limit successfully created!", newLimit: await this.limits.createOne(newLimit) };
     }
   }
 
-  async decrement(resource: ObjectId, decrement: number) {
-    const existingLimit = await this.limits.readOne({ resource });
+  async decrement(resource: ObjectId, decrement: number, type: string) {
+    const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
 
     if (!existingLimit) {
-      throw new Error("Limit not found for the specified resource.");
+      throw new Error("No limit to decrement.");
     }
 
     if (existingLimit.remaining >= decrement) {
       existingLimit.remaining -= decrement;
-      return { msg: "Limit decremented successfully!", result: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
+      return { msg: "Limit decremented successfully!", type: type, result: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
     } else {
-      throw new Error("Decrement exceeds the remaining limit count.");
+      throw new Error("You have run out of resources. Try again in: " + (await this.timeUntilReset(resource, type)));
     }
   }
 
-  async getRemaining(resource: ObjectId) {
-    const existingLimit = await this.limits.readOne({ resource });
+  async getRemaining(resource: ObjectId, type: string) {
+    const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
 
     if (!existingLimit) {
-      throw new Error("Limit not found for the specified resource.");
+      throw new Error("No limit to get remainder of.");
     }
 
-    return { msg: "Got remaining resources successfully", remaining: existingLimit.remaining };
+    return { msg: "Got remaining resources successfully", type: type, remaining: existingLimit.remaining };
   }
 
-  async reset(resource: ObjectId) {
-    const existingLimit = await this.limits.readOne({ resource });
-
+  async reset(resource: ObjectId, type: string) {
+    const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
     if (!existingLimit) {
-      throw new Error("Limit not found for the specified resource.");
+      throw new Error("No limit found to reset");
     }
-
     existingLimit.remaining = existingLimit.limit;
     existingLimit.resetTime = Date.now() + 24 * 3600000; // Reset to 24 hours from now
-    return { msg: "Limit restored successfully!", limit: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
+    return { msg: "Limit restored successfully!", type: type, limit: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
   }
 
-  async getStatus(resource: ObjectId) {
-    const existingLimit = await this.limits.readOne({ resource });
+  async getStatus(resource: ObjectId, type: string) {
+    const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
 
     if (!existingLimit) {
-      throw new Error("Limit not found for the specified resource.");
+      throw new Error("No limit to get status of.");
     }
 
     const resetTime = new Date(existingLimit.resetTime);
 
-    return { limit: existingLimit.limit, remaining: existingLimit.remaining, resetTime };
+    return { type: type, limit: existingLimit.limit, remaining: existingLimit.remaining, resetTime };
   }
 
-  async timeUntilReset(resource: ObjectId) {
-    const existingLimit = await this.limits.readOne({ resource });
+  async timeUntilReset(resource: ObjectId, type: string) {
+    const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
 
     if (!existingLimit) {
       throw new Error("Check resource spelling. Limit not found for the specified resource.");
