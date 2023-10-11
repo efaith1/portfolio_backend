@@ -22,20 +22,18 @@ export default class LimitConcept {
     const resetTime = Date.now() + 24 * 3600000; // 24 hours in milliseconds
 
     if (existingLimit) {
-      // Update the existing limit
       existingLimit.limit = limit;
       existingLimit.remaining = Math.min(existingLimit.remaining, limit); // will update in the next cycle
       existingLimit.resetTime = resetTime;
-      existingLimit.options = options || {};
+      existingLimit.options = options;
       return { msg: "Limit reset successfully to a new limit", update: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
     } else {
-      // Create a new limit document
       const newLimit = {
         resource: resource,
         limit: limit,
         remaining: limit,
         resetTime: resetTime,
-        options: options || {},
+        options: options,
       };
       return { msg: "Limit successfully created!", applied_to: await this.limits.createOne(newLimit) };
     }

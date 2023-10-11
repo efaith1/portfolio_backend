@@ -48,7 +48,7 @@ const operations: operation[] = [
     fields: {},
   },
   {
-    name: "Get Users (empty for all)",
+    name: "Get Users",
     endpoint: "/api/users/:username",
     method: "GET",
     fields: { username: "input" },
@@ -60,7 +60,7 @@ const operations: operation[] = [
     fields: { content: "input" },
   },
   {
-    name: "Get Posts (empty for all)",
+    name: "Get Posts",
     endpoint: "/api/posts",
     method: "GET",
     fields: { author: "input" },
@@ -121,7 +121,7 @@ const operations: operation[] = [
   },
   {
     name: "Get All Notifications",
-    endpoint: "/api/notifications",
+    endpoint: "/api/notifications/all",
     method: "GET",
     fields: { recipient: "input" },
   },
@@ -145,7 +145,7 @@ const operations: operation[] = [
   },
   {
     name: "Clear all Notifications",
-    endpoint: "/api/notifications",
+    endpoint: "/api/notifications/clear",
     method: "DELETE",
     fields: { recipient: "input" },
   },
@@ -165,13 +165,13 @@ const operations: operation[] = [
     name: "Create Limit",
     endpoint: "/api/limits/resource",
     method: "POST",
-    fields: { resource: "input", setLimit: { value: "input" } },
+    fields: { resource: "input", limit: "input" },
   },
   {
     name: "Decrement Limit",
     endpoint: "/api/limits/resource",
     method: "PUT",
-    fields: { resource: "input", decrementBy: { value: "input" } },
+    fields: { resource: "input", limit: "input" },
   },
   {
     name: "Get Remaining Limit",

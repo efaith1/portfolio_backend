@@ -42,13 +42,13 @@ export default class ReactionConcept {
     return reactions;
   }
 
-  async getByPostId(target: ObjectId) {
-    const count = await this.getReactions({ target: target }); // TODO I've tried, I have
+  async getReactionCount(target: ObjectId) {
+    const count = await this.reactions.readMany({ target: new ObjectId(target) });
     return count.length;
   }
 
   async getByAuthor(author: ObjectId) {
-    return await this.getReactions({ author: author });
+    return await this.getReactions({ author: new ObjectId(author) });
   }
 }
 

@@ -25,11 +25,6 @@ export default class NotificationConcept {
     return notifications;
   }
 
-  async clearNotificationHelper(query: Filter<NotificationDoc>) {
-    await this.notifications.deleteMany(query);
-    return;
-  }
-
   async send(recipient: ObjectId, content: string, options?: NotificationOptions) {
     const _id = await this.notifications.createOne({ recipient, content, read: false, canSend: true, options });
     return { msg: "Notification sent successfully!", post: await this.notifications.readOne({ _id }) };
@@ -57,7 +52,7 @@ export default class NotificationConcept {
 
   async getRead(recipientId: ObjectId) {
     const query = {
-      recipient: recipientId,
+      recipient: new ObjectId(recipientId),
       read: true,
     };
     return await this.getNotifications(query);
@@ -65,8 +60,15 @@ export default class NotificationConcept {
 
   async getUnread(recipientId: ObjectId) {
     const query = {
-      recipient: recipientId,
+      recipient: new ObjectId(recipientId),
       read: false,
+    };
+    return await this.getNotifications(query);
+  }
+
+  async getAll(recipientId: ObjectId) {
+    const query = {
+      recipient: new ObjectId(recipientId),
     };
     return await this.getNotifications(query);
   }
@@ -80,7 +82,7 @@ export default class NotificationConcept {
   }
 
   async clearNotifications(recipientId: ObjectId) {
-    return await this.clearNotificationHelper({ recipient: recipientId });
+    return await this.notifications.deleteMany({ recipient: new ObjectId(recipientId) });
   }
 
   async unsubscribe(user: ObjectId) {
@@ -132,6 +134,6 @@ export class NotificationAuthorNotMatchError extends NotAllowedError {
     public readonly author: ObjectId,
     public readonly _id: ObjectId,
   ) {
-    super("{0} is not the author of notification {1}!", author, _id);
+    super("You cannot delete a notification unless you are the recipient!", author, _id);
   }
 }

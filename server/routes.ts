@@ -49,20 +49,23 @@ class Routes {
 
   @Router.post("/login")
   async logIn(session: WebSessionDoc, username: string, password: string) {
-    try {
-      const u = await User.authenticate(username, password);
-      const timeLoggedIn = WebSession.calculateTimeLoggedIn(session);
-      const decremented = await Limit.decrement(u._id, timeLoggedIn);
-      if (decremented) {
-        WebSession.start(session, u._id);
-        return { msg: "Logged in!" };
-      } else {
-        // Decrement failed (limit not found or insufficient remaining limit)
-        throw new Error("Login limit exceeded.");
-      }
-    } catch (error) {
-      throw new Error("Authentication failed.");
-    }
+    const u = await User.authenticate(username, password);
+    WebSession.start(session, u._id);
+    return { msg: "Logged in!" };
+    // try {
+    //   const u = await User.authenticate(username, password);
+    //   const timeLoggedIn = WebSession.calculateTimeLoggedIn(session);
+    //   const decremented = await Limit.decrement(u._id, timeLoggedIn);
+    //   if (decremented) {
+    //     WebSession.start(session, u._id);
+    //     return { msg: "Logged in!" };
+    //   } else {
+    //     // Decrement failed (limit not found or insufficient remaining limit)
+    //     throw new Error("Login limit exceeded.");
+    //   }
+    // } catch (error) {
+    //   console.error("Authentication failed.", error);
+    // }
   }
 
   @Router.post("/logout")
@@ -175,32 +178,45 @@ class Routes {
     return await Friend.rejectRequest(fromId, user);
   }
 
-  /**
-   * @param session current session
-   * @param _id id of content user is reacting to
-   * @param options optional options
-   * @returns a new upvote for post _id from user in session
-   */
   @Router.post("/reactions/:_id") // TODO is it okay to mention other concepts in this route, eg post/id/reactions?
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id; //error handled here
     const created = await Reaction.upvote(user, post, options);
     return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
+    // const getRemaining = await Limit.getRemaining(user);
+    // if (getRemaining.remaining >= 0) {
+    //   await Limit.decrement(user, 1);
+    //   const created = await Reaction.upvote(user, post, options);
+    //   return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
+    // } else {
+    //   return { msg: "Reaction limit exceeded" };
+    // }
   }
 
   @Router.delete("/reactions/:_id") // TODO same as above
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
-    const post = (await Post.getPostById(_id))._id; //errors handled here
-    // await Reaction.isAuthor(user, _id);
-    const deleted = await Reaction.downvote(user, post, options);
-    return { msg: deleted.msg, upvote: await Responses.reaction(deleted.reaction) };
+    const post = (await Post.getPostById(_id))._id; //error handled here
+    const created = await Reaction.downvote(user, post, options);
+    return { msg: created.msg, upvote: await Responses.reaction(created.reaction) };
+
+    // const user = WebSession.getUser(session);
+    // const post = (await Post.getPostById(_id))._id; //errors handled here
+    // const getRemaining = await Limit.getRemaining(user);
+    // if (getRemaining.remaining >= 0) {
+    //   await Limit.decrement(user, 1);
+    //   // await Reaction.isAuthor(user, _id);
+    //   const deleted = await Reaction.downvote(user, post, options);
+    //   return { msg: deleted.msg, upvote: await Responses.reaction(deleted.reaction) };
+    // } else {
+    //   return { msg: "Reaction limit exceeded" };
+    // }
   }
 
   @Router.get("/reactions")
-  async getPostReactionCount(_id: ObjectId) {
-    return await Reaction.getByPostId(_id);
+  async getPostReactionCount(target: ObjectId) {
+    return await Reaction.getReactionCount(target);
   }
 
   @Router.get("/reactions/:user")
@@ -208,11 +224,9 @@ class Routes {
     // Citation: posts implementation above and gpt for debugging
     let reactions;
     if (author) {
-      //TODO should not take a user's ID, right?
       const id = (await User.getUserByUsername(author))._id; //errors handled here
       reactions = await Reaction.getByAuthor(id);
       const upvotedPostIds = reactions.map((reaction) => reaction.target);
-      // Retrieve the posts corresponding to the upvotedPostIds
       const upvotedPosts = await Post.getPosts({ _id: { $in: upvotedPostIds } });
       reactions = upvotedPosts;
     } else {
@@ -246,22 +260,10 @@ class Routes {
     return await Notification.markAsUnread(_id);
   }
 
-  @Router.get("/notifications")
-  async getAll(author?: string) {
-    let notifications;
-    if (author) {
-      const id = (await User.getUserByUsername(author))._id;
-      notifications = await Notification.getNotifications({ id });
-    } else {
-      notifications = await Notification.getNotifications({});
-    }
-    return Responses.notifications(notifications);
-  }
-
   @Router.get("/notifications/read")
-  async getReadNotifications(author?: string) {
-    if (author) {
-      const id = (await User.getUserByUsername(author))._id;
+  async getReadNotifications(recipient?: string) {
+    if (recipient) {
+      const id = (await User.getUserByUsername(recipient))._id;
       return await Notification.getRead(id);
     } else {
       return { msg: "Could not get read" };
@@ -269,12 +271,38 @@ class Routes {
   }
 
   @Router.get("/notifications/unread")
-  async getUnreadNotifications(author?: string) {
-    if (author) {
-      const id = (await User.getUserByUsername(author))._id;
+  async getUnreadNotifications(recipient?: string) {
+    if (recipient) {
+      const id = (await User.getUserByUsername(recipient))._id;
       return await Notification.getUnread(id);
     } else {
       return { msg: "Could not get unread" };
+    }
+  }
+
+  @Router.get("/notifications/all")
+  async getAll(recipient?: string) {
+    if (recipient) {
+      const id = (await User.getUserByUsername(recipient))._id;
+      return await Notification.getAll(id);
+    } else {
+      return { msg: "Could not get all of user's notifications" };
+    }
+  }
+
+  @Router.delete("/notifications/clear")
+  async clearNotifications(recipient?: string) {
+    try {
+      if (recipient) {
+        WebSession.isLoggedIn;
+        const id = (await User.getUserByUsername(recipient))._id;
+        const result = await Notification.clearNotifications(new ObjectId(id));
+        return { msg: "Notifications cleared successfully", result };
+      } else {
+        return { msg: "Could not clear notifications" };
+      }
+    } catch (error) {
+      return { msg: "Error clearing notifications:", error };
     }
   }
 
@@ -290,48 +318,16 @@ class Routes {
     }
   }
 
-  @Router.delete("/notifications")
-  async clearNotifications(session: WebSessionDoc, author?: string) {
-    try {
-      if (author) {
-        const id = (await User.getUserByUsername(author))._id;
-        const result = await Notification.clearNotifications(id);
-        return { msg: "Notifications cleared successfully", result };
-      } else {
-        return { msg: "Could not clear notifications" };
-      }
-    } catch (error) {
-      // Handle errors here
-      console.error("Error clearing notifications:", error);
-      return { error: "An error occurred while clearing notifications" };
-    }
-    // const user = WebSession.getUser(session); // TODO is recipient with userId
-    // try {
-    //   if (author) {
-    //     const id = (await User.getUserByUsername(author))._id;
-    //     await Notification.isRecipient(user, _notificationId);
-    //   const result = await Notification.deleteNotification(_notificationId);
-    //   return { msg: "Notification deleted successfully", result };
-    //     return await Notification.clearNotifications(id);
-    //   }
-    // } catch (error) {
-    //   // Handle errors, such as unauthorized access or notification not found
-    //   return { msg: "You cannot delete unless you are the recipient", error };
-    // }
-  }
-
   @Router.put("/notifications/unsubscribe")
   async unsubscribe(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
-    const auth = await User.getUserById(user);
-    return await Notification.unsubscribe(auth._id);
+    return await Notification.unsubscribe(user);
   }
 
   @Router.put("/notifications/subscribe")
   async subscribe(session: WebSessionDoc) {
     const user = WebSession.getUser(session);
-    const auth = await User.getUserById(user);
-    return await Notification.subscribe(auth._id);
+    return await Notification.subscribe(user);
   }
 
   @Router.post("/limits/resource")
