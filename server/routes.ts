@@ -33,6 +33,13 @@ class Routes {
     WebSession.isLoggedOut(session);
     return await User.create(username, password);
   }
+  // WebSession.isLoggedOut(session);
+  //   const user = await User.create(username, password);
+  //   if (user.user?._id) {
+  //     console.log("applied to whom", user.user._id);
+  //     void Limit.setLimit(user.user._id, 20);
+  //     return { msg: "User account created successfully!" };
+  //   }
 
   @Router.patch("/users")
   async updateUser(session: WebSessionDoc, update: Partial<UserDoc>) {
@@ -179,7 +186,7 @@ class Routes {
     return await Friend.rejectRequest(fromId, user);
   }
 
-  @Router.post("/reactions/:_id") // TODO is it okay to mention other concepts in this route, eg post/id/reactions?
+  @Router.post("/reactions/:_id")
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id; //error handled here
@@ -195,7 +202,7 @@ class Routes {
     // }
   }
 
-  @Router.delete("/reactions/:_id") // TODO same as above
+  @Router.delete("/reactions/:_id")
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id; //error handled here
@@ -225,7 +232,7 @@ class Routes {
     // Citation: posts implementation above and gpt for debugging
     let reactions;
     if (author) {
-      const id = (await User.getUserByUsername(author))._id; //errors handled here
+      const id = (await User.getUserByUsername(author))._id;
       reactions = await Reaction.getByAuthor(id);
       const upvotedPostIds = reactions.map((reaction) => reaction.target);
       const upvotedPosts = await Post.getPosts({ _id: { $in: upvotedPostIds } });
