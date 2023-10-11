@@ -92,7 +92,7 @@ export default class LimitConcept {
     const existingLimit = await this.limits.readOne({ resource });
 
     if (!existingLimit) {
-      throw new Error("Limit not found for the specified resource.");
+      throw new Error("Check resource spelling. Limit not found for the specified resource.");
     }
 
     const currentTime = Date.now();

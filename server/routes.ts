@@ -71,25 +71,26 @@ class Routes {
   @Router.post("/logout")
   async logOut(session: WebSessionDoc) {
     WebSession.end(session);
+    // maybe you want to delete after you log out you decrement
     return { msg: "Logged out!" };
   }
 
   @Router.post("/backgroundcheck")
   async backgroundCheck() {
-    const loggedInSessions = WebSession.getActiveSessions(); // Implement this function
+    const loggedInSessions = WebSession.getActiveSessions();
     loggedInSessions.forEach(async (session) => {
       try {
         // Calculate the time elapsed since the last check (you need to implement this)
-        const timeElapsed = WebSession.calculateTimeLoggedIn(session); // Implement this function
+        // const timeElapsed = WebSession.calculateTimeLoggedIn(session);
         const user = WebSession.getUser(session);
 
         // Decrement the time limit based on the elapsed time
-        const decremented = await Limit.decrement(user, timeElapsed);
+        const decremented = await Limit.decrement(user, 3); // will this over-delete?
         const getRemaining = await Limit.getRemaining(user);
 
         if (decremented && getRemaining.remaining <= 0) {
           // The time limit has expired, log the user out
-          WebSession.end(session);
+          WebSession.end(session); // potential to end 3 minutes early or late
         }
       } catch (error) {
         console.error("Error checking time limit:", error);
@@ -335,10 +336,9 @@ class Routes {
     return await Limit.setLimit(resource, limit, options);
   }
 
-  @Router.put("/limits/resource")
+  @Router.put("/limits/resource") // need user not found and user is recipient for all limits
   async decrementLimit(resource: ObjectId, limit: number) {
-    const auth = await User.getUserById(resource);
-    return await Limit.decrement(auth._id, limit);
+    return await Limit.decrement(resource, limit);
   }
 
   @Router.get("/limits/resource")
@@ -356,7 +356,7 @@ class Routes {
     return await Limit.getStatus(resource);
   }
 
-  @Router.get("/limits/waitime")
+  @Router.get("/limits/waitime") // need user not found and user is recipient for all limits
   async getTimeToReset(resource: ObjectId) {
     return await Limit.timeUntilReset(resource);
   }
