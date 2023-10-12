@@ -52,7 +52,7 @@ export default class LimitConcept {
       existingLimit.remaining -= decrement;
       return { msg: "Limit decremented successfully!", type: type, result: await this.limits.updateOne({ _id: existingLimit._id }, existingLimit) };
     } else {
-      throw new Error("You have run out of resources. Try again in: " + (await this.timeUntilReset(resource, type)));
+      throw new Error("Decrement exceeds remaining resources. Try a smaller number");
     }
   }
 
@@ -60,7 +60,7 @@ export default class LimitConcept {
     const existingLimit = await this.limits.readOne({ resource: new ObjectId(resource), type: type });
 
     if (!existingLimit) {
-      throw new Error("You didn't have a limit set, but we've just set one. Please try again.");
+      throw new Error("No limit set. Retry if you see a remaining parameter or set a limit");
     }
 
     return { msg: "Got remaining resources successfully", type: type, remaining: existingLimit.remaining };

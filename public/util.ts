@@ -162,40 +162,40 @@ const operations: operation[] = [
     fields: { userId: "input" },
   },
   {
-    name: "Create Limit",
+    name: "Create Limit (use type=reaction for upvotes, type=loginToken for session)",
     endpoint: "/api/limits/resource",
     method: "POST",
-    fields: { resource: "input", limit: "input", type: "input" },
+    fields: { receiverId: "input", limit: "input", type: "input" },
   },
   {
     name: "Decrement Limit",
     endpoint: "/api/limits/resource",
     method: "PUT",
-    fields: { resource: "input", limit: "input", type: "input" },
+    fields: { receiverId: "input", limit: "input", type: "input" },
   },
   {
     name: "Get Remaining Limit",
     endpoint: "/api/limits/resource",
     method: "GET",
-    fields: { resource: "input", type: "input" },
+    fields: { receiverId: "input", type: "input" },
   },
   {
     name: "Reset Limit",
     endpoint: "/api/limits/reset",
     method: "PUT",
-    fields: { resource: "input", type: "input" },
+    fields: { receiverId: "input", type: "input" },
   },
   {
     name: "Get Status",
     endpoint: "/api/limits/status",
     method: "GET",
-    fields: { resource: "input", type: "input" },
+    fields: { receiverId: "input", type: "input" },
   },
   {
     name: "Get Time Until Limit Reset",
     endpoint: "/api/limits/waitime",
     method: "GET",
-    fields: { resource: "input", type: "input" },
+    fields: { receiverId: "input", type: "input" },
   },
 ];
 

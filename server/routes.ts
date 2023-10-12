@@ -84,11 +84,12 @@ class Routes {
         return { msg: "Error calculating time elapsed" };
       }
     } catch (error) {
-      return { msg: "Error while logging out", error };
+      return { msg: "Error while logging out, you refreshed the page before logging out" };
     }
   }
 
   async backgroundCheck() {
+    // Citation: gpt for debugging
     const loggedInSessions = WebSession.getActiveSessions();
     loggedInSessions.forEach(async (session) => {
       try {
@@ -201,7 +202,7 @@ class Routes {
 
   @Router.post("/reactions/:_id")
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
-    // citation: gpt for cleaner code (debugging).
+    // citation: gpt for cleaner code (and debugging).
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id;
 
@@ -230,7 +231,7 @@ class Routes {
 
   @Router.delete("/reactions/:_id")
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
-    // citation: gpt for cleaner code (debugging).
+    // citation: gpt for cleaner code (and debugging).
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id;
 
@@ -374,33 +375,33 @@ class Routes {
   }
 
   @Router.post("/limits/resource")
-  async createLimit(resource: ObjectId, limit: number, type: string, options?: LimitOptions) {
-    return await Limit.setLimit(resource, limit, type, options);
+  async createLimit(receiverId: ObjectId, limit: number, type: string, options?: LimitOptions) {
+    return await Limit.setLimit(receiverId, limit, type, options);
   }
 
   @Router.put("/limits/resource") // need user not found and user is recipient for all limits
-  async decrementLimit(resource: ObjectId, limit: number, type: string) {
-    return await Limit.decrement(resource, limit, type);
+  async decrementLimit(receiverId: ObjectId, limit: number, type: string) {
+    return await Limit.decrement(receiverId, limit, type);
   }
 
   @Router.get("/limits/resource")
-  async getRemaining(resource: ObjectId, type: string) {
-    return await Limit.getRemaining(resource, type);
+  async getRemaining(receiverId: ObjectId, type: string) {
+    return await Limit.getRemaining(receiverId, type);
   }
 
   @Router.put("/limits/reset")
-  async resetLimit(resource: ObjectId, type: string) {
-    return await Limit.reset(resource, type);
+  async resetLimit(receiverId: ObjectId, type: string) {
+    return await Limit.reset(receiverId, type);
   }
 
   @Router.get("/limits/status")
-  async getStatus(resource: ObjectId, type: string) {
-    return await Limit.getStatus(resource, type);
+  async getStatus(receiverId: ObjectId, type: string) {
+    return await Limit.getStatus(receiverId, type);
   }
 
   @Router.get("/limits/waitime") // need user not found and user is recipient for all limits
-  async getTimeToReset(resource: ObjectId, type: string) {
-    return await Limit.timeUntilReset(resource, type);
+  async getTimeToReset(receiverId: ObjectId, type: string) {
+    return await Limit.timeUntilReset(receiverId, type);
   }
 }
 
