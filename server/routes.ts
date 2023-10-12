@@ -50,29 +50,42 @@ class Routes {
   @Router.post("/login")
   async logIn(session: WebSessionDoc, username: string, password: string) {
     const u = await User.authenticate(username, password);
-    WebSession.start(session, u._id);
-    return { msg: "Logged in!" };
-    // try {
-    //   const u = await User.authenticate(username, password);
-    //   const timeLoggedIn = WebSession.calculateTimeLoggedIn(session);
-    //   const decremented = await Limit.decrement(u._id, timeLoggedIn);
-    //   if (decremented) {
-    //     WebSession.start(session, u._id);
-    //     return { msg: "Logged in!" };
-    //   } else {
-    //     // Decrement failed (limit not found or insufficient remaining limit)
-    //     throw new Error("Login limit exceeded.");
-    //   }
-    // } catch (error) {
-    //   console.error("Authentication failed.", error);
-    // }
+    try {
+      const loginToken = await Limit.getRemaining(u._id, "loginToken");
+      if (loginToken.remaining > 0) {
+        WebSession.start(session, u._id);
+        return { msg: "Logged in!", remaining: loginToken.remaining / (60 * 60 * 1000) + " hours" };
+      } else {
+        const timeUntilReset = await Limit.timeUntilReset(u._id, "loginToken");
+        return { msg: `You have exceeded your time online today. Please try again in ${timeUntilReset}` };
+      }
+    } catch (error) {
+      await Limit.setLimit(u._id, 5 * 60 * 60 * 1000, "loginToken"); // A default of 5 hrs (in milliseconds)
+      return {
+        msg: error instanceof Error && error.message ? error.message : "You had not set a login limit. Try logging in again.",
+        remaining: (await Limit.getRemaining(u._id, "loginToken")).remaining / (60 * 60 * 1000) + " hours",
+      };
+    }
   }
 
   @Router.post("/logout")
   async logOut(session: WebSessionDoc) {
-    WebSession.end(session);
-    // maybe you want to delete after you log out you decrement
-    return { msg: "Logged out!" };
+    try {
+      const timeElapsed = WebSession.calculateTimeLoggedIn(session);
+      const user = WebSession.getUser(session);
+      if (typeof timeElapsed === "number") {
+        await Limit.decrement(user, timeElapsed, "loginToken");
+        WebSession.end(session);
+        return {
+          msg: "Logged out!",
+          remaining: (await Limit.getRemaining(user, "loginToken")).remaining / (60 * 60 * 1000) + " hours",
+        };
+      } else {
+        return { msg: "Error calculating time elapsed" };
+      }
+    } catch (error) {
+      return { msg: "Error while logging out", error };
+    }
   }
 
   @Router.post("/backgroundcheck")
@@ -80,23 +93,31 @@ class Routes {
     const loggedInSessions = WebSession.getActiveSessions();
     loggedInSessions.forEach(async (session) => {
       try {
-        // Calculate the time elapsed since the last check (you need to implement this)
-        // const timeElapsed = WebSession.calculateTimeLoggedIn(session);
+        // Calculate the time elapsed since the last check
+        const timeElapsed = WebSession.calculateTimeLoggedIn(session);
         const user = WebSession.getUser(session);
+        if (typeof timeElapsed === "number") {
+          // Decrement the time limit based on the elapsed time
+          const decremented = await Limit.decrement(user, timeElapsed, "loginToken");
+          const getRemaining = await Limit.getRemaining(user, "loginToken");
 
-        // Decrement the time limit based on the elapsed time
-        const decremented = await Limit.decrement(user, 3, "session"); // will this over-delete?
-        const getRemaining = await Limit.getRemaining(user, "session");
-
-        if (decremented && getRemaining.remaining <= 0) {
-          // The time limit has expired, log the user out
-          WebSession.end(session); // potential to end 3 minutes early or late
+          if (decremented && getRemaining.remaining <= 0) {
+            // The time limit has expired, log the user out
+            WebSession.end(session);
+            return { msg: "You have been logged out since your time elapsed" };
+          } else {
+            console.log("COMPLIANTTT");
+            return { msg: "user " + User.getUserById(user) + " is currently compliant" };
+          }
+        } else {
+          return { msg: "Error calculating time elapsed" };
         }
       } catch (error) {
-        console.error("Error checking time limit:", error);
+        console.error("Error during background check", error);
       }
     });
-    setInterval(this.backgroundCheck, 3 * 60 * 1000); // Run every 3 minutes
+
+    setInterval(() => this.backgroundCheck(), 3 * 60 * 1000);
   }
 
   @Router.get("/posts")
@@ -181,43 +202,59 @@ class Routes {
 
   @Router.post("/reactions/:_id")
   async createUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
+    // citation: gpt for cleaner code (debugging).
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id;
+
     try {
-      await Limit.getRemaining(user, "reaction");
-      await Limit.decrement(user, 1, "reaction");
+      const limit = await Limit.getRemaining(user, "reaction");
+      if (limit.remaining <= 0) {
+        return { msg: `You have run out of resources. Try again in ${await Limit.timeUntilReset(user, "reaction")}` };
+      }
+
       const created = await Reaction.upvote(user, post, options);
-      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+      await Limit.decrement(user, 1, "reaction");
+
+      return {
+        msg: created.msg,
+        upvote: await Responses.reaction(created.reaction),
+        remaining: (await Limit.getRemaining(user, "reaction")).remaining,
+      };
     } catch (error) {
       await Limit.setLimit(user, 20, "reaction");
-      await Limit.decrement(user, 1, "reaction");
-      const created = await Reaction.upvote(user, post, options);
-      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+      return {
+        msg: error instanceof Error ? error.message : "You did not set a reaction limit. Try again.",
+        remaining: (await Limit.getRemaining(user, "reaction")).remaining,
+      };
     }
   }
 
   @Router.delete("/reactions/:_id")
   async deleteUpvote(session: WebSessionDoc, _id: ObjectId, options?: ReactionOptions) {
+    // citation: gpt for cleaner code (debugging).
     const user = WebSession.getUser(session);
     const post = (await Post.getPostById(_id))._id;
+
     try {
       const limit = await Limit.getRemaining(user, "reaction");
-      if (limit.remaining > 0) {
-        try {
-          const created = await Reaction.downvote(user, post, options);
-          await Limit.decrement(user, 1, "reaction");
-          return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
-        } catch (error) {
-          return { msg: "User has not upvoted this post." };
-        }
-      } else {
-        return { msg: "You have run out of resources. Try again in " + (await Limit.timeUntilReset(user, "reaction")) };
+      if (limit.remaining <= 0) {
+        return { msg: `You have run out of resources. Try again in ${await Limit.timeUntilReset(user, "reaction")}` };
       }
-    } catch (error) {
-      await Limit.setLimit(user, 20, "reaction");
+
       const created = await Reaction.downvote(user, post, options);
       await Limit.decrement(user, 1, "reaction");
-      return { msg: created.msg, upvote: await Responses.reaction(created.reaction), remaining: (await Limit.getRemaining(user, "reaction")).remaining };
+
+      return {
+        msg: created.msg,
+        upvote: await Responses.reaction(created.reaction),
+        remaining: (await Limit.getRemaining(user, "reaction")).remaining,
+      };
+    } catch (error) {
+      await Limit.setLimit(user, 20, "reaction");
+      return {
+        msg: error instanceof Error ? error.message : "You did not set a reaction limit. Try again.",
+        remaining: (await Limit.getRemaining(user, "reaction")).remaining,
+      };
     }
   }
 

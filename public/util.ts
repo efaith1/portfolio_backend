@@ -36,6 +36,12 @@ const operations: operation[] = [
     fields: {},
   },
   {
+    name: "Background Check",
+    endpoint: "/api/backgroundcheck",
+    method: "POST",
+    fields: {},
+  },
+  {
     name: "Update User",
     endpoint: "/api/users",
     method: "PATCH",
@@ -85,7 +91,7 @@ const operations: operation[] = [
   },
   {
     name: "Delete Upvote",
-    endpoint: "/api/reactions/:postId", // TODO is the ID needed here
+    endpoint: "/api/reactions/:postId",
     method: "DELETE",
     fields: { postId: "input" },
   },

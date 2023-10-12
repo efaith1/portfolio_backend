@@ -53,11 +53,6 @@ export default class WebSessionConcept {
     return new ObjectId(session.user);
   }
 
-  getSessionCookie(session: WebSessionDoc) {
-    this.isLoggedIn(session);
-    return session.cookie;
-  }
-
   isLoggedIn(session: WebSessionDoc) {
     if (session.user === undefined) {
       throw new UnauthenticatedError("Must be logged in!");
@@ -71,12 +66,18 @@ export default class WebSessionConcept {
   }
 
   calculateTimeLoggedIn(session: WebSessionDoc) {
-    const loginTime = session.loginTime;
-    if (loginTime) {
-      const logoutTime = session.logoutTime || new Date();
-      const timeDiffInSeconds = (logoutTime.getTime() - loginTime.getTime()) / 1000;
-      return timeDiffInSeconds;
+    try {
+      const loginTime = new Date(session.loginTime);
+      if (!isNaN(loginTime.getTime())) {
+        const logoutTime = new Date(session.logoutTime);
+        if (!isNaN(logoutTime.getTime())) {
+          const timeDiffInMilliseconds = Math.abs(logoutTime.getTime() - loginTime.getTime());
+          return timeDiffInMilliseconds;
+        }
+      }
+      return "Could not get logout time";
+    } catch (error) {
+      return error ? error : "Could not get logout time";
     }
-    return 0; // User was not logged in or no login time recorded
   }
 }
