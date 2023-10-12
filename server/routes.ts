@@ -88,7 +88,6 @@ class Routes {
     }
   }
 
-  @Router.post("/backgroundcheck")
   async backgroundCheck() {
     const loggedInSessions = WebSession.getActiveSessions();
     loggedInSessions.forEach(async (session) => {
@@ -117,7 +116,7 @@ class Routes {
       }
     });
 
-    setInterval(() => this.backgroundCheck(), 3 * 60 * 1000);
+    setInterval(() => this.backgroundCheck(), 3 * 60 * 1000); // check every 3 minutes
   }
 
   @Router.get("/posts")

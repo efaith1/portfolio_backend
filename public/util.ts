@@ -36,12 +36,6 @@ const operations: operation[] = [
     fields: {},
   },
   {
-    name: "Background Check",
-    endpoint: "/api/backgroundcheck",
-    method: "POST",
-    fields: {},
-  },
-  {
     name: "Update User",
     endpoint: "/api/users",
     method: "PATCH",
